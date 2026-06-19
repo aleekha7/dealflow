@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -64,6 +65,7 @@ export function ContactsView({
   const [editing, setEditing] = React.useState<Contact | null>(null);
   const [selected, setSelected] = React.useState<Contact | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [linkedinBannerDismissed, setLinkedinBannerDismissed] = React.useState(false);
 
   const hasFilters = query !== "" || tierFilter !== ALL || stageFilter !== ALL;
 
@@ -153,6 +155,30 @@ export function ContactsView({
           </Button>
         </div>
       </div>
+
+      {/* LinkedIn import banner */}
+      {!linkedinBannerDismissed && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm dark:border-blue-900 dark:bg-blue-950/40">
+          <div className="flex-1 text-blue-900 dark:text-blue-200">
+            <span className="font-medium">Import your LinkedIn connections.</span>{" "}
+            Go to LinkedIn → Settings &amp; Privacy → Data Privacy → Get a copy of your data → Connections → Request archive. LinkedIn will email you a CSV — upload it here with the{" "}
+            <button
+              className="underline underline-offset-2 font-medium"
+              onClick={() => setImportOpen(true)}
+            >
+              Import CSV
+            </button>{" "}
+            button.
+          </div>
+          <button
+            onClick={() => setLinkedinBannerDismissed(true)}
+            className="mt-0.5 shrink-0 text-blue-500 hover:text-blue-700 dark:text-blue-400"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col gap-2 sm:flex-row">

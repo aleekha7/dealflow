@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { api, type ContactInput } from "@/lib/client-api";
 import { TIERS } from "@/lib/constants";
 import type { FirmTier } from "@/types";
@@ -50,8 +51,11 @@ const HEADER_ALIASES: Record<string, string> = {
   position: "role",
   email: "email",
   email_address: "email",
+  // LinkedIn export columns
+  url: "linkedin_url",
   linkedin_url: "linkedin_url",
   linkedin: "linkedin_url",
+  connected_on: "_ignore",
   tier: "tier",
   firm_tier: "tier",
   notes: "notes",
@@ -179,11 +183,21 @@ export function CsvImportDialog({
         <DialogHeader>
           <DialogTitle>Import contacts from CSV</DialogTitle>
           <DialogDescription>
-            Upload a CSV with columns like first_name, last_name, firm, role,
-            email, linkedin_url, tier, and notes. Header names are matched
-            flexibly.
+            Import from LinkedIn or any CSV with contact info.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-md border bg-muted/40 p-3 text-sm space-y-1">
+          <p className="font-medium">Importing from LinkedIn?</p>
+          <ol className="list-decimal list-inside text-muted-foreground space-y-0.5">
+            <li>Go to LinkedIn → Settings &amp; Privacy</li>
+            <li>Data Privacy → Get a copy of your data</li>
+            <li>Select <span className="font-medium text-foreground">Connections</span> → Request archive</li>
+            <li>LinkedIn emails you a link — download the CSV and upload it here</li>
+          </ol>
+        </div>
+
+        <Separator />
 
         <div className="space-y-4">
           <button
