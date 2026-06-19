@@ -30,22 +30,22 @@ export async function POST() {
   const priceId = process.env.STRIPE_PRICE_ID!;
   const stripeKey = process.env.STRIPE_SECRET_KEY;
 
-  console.log("[checkout] appUrl:", appUrl, "priceId:", priceId, "hasKey:", !!stripeKey);
-  console.log("[checkout] profile email:", profile.email, "status:", profile.subscription_status, "customerId:", profile.stripe_customer_id);
+  console.error("[checkout] appUrl:", appUrl, "priceId:", priceId, "hasKey:", !!stripeKey);
+  console.error("[checkout] profile email:", profile.email, "status:", profile.subscription_status, "customerId:", profile.stripe_customer_id);
 
   const stripe = getStripe();
 
   try {
     let customerId = profile.stripe_customer_id;
     if (!customerId) {
-      console.log("[checkout] creating Stripe customer...");
+      console.error("[checkout] creating Stripe customer...");
       const customer = await stripe.customers.create({
         email: profile.email || undefined,
         name: profile.full_name || undefined,
         metadata: { supabase_user_id: user.id },
       });
       customerId = customer.id;
-      console.log("[checkout] customer created:", customerId);
+      console.error("[checkout] customer created:", customerId);
 
       const { createAdminClient } = await import("@/lib/supabase/admin");
       const admin = createAdminClient();
@@ -57,10 +57,10 @@ export async function POST() {
         console.error("[checkout] failed to save customer id:", updateError);
         return jsonError("Failed to save billing profile", 500);
       }
-      console.log("[checkout] customer id saved to profile");
+      console.error("[checkout] customer id saved to profile");
     }
 
-    console.log("[checkout] creating checkout session...");
+    console.error("[checkout] creating checkout session...");
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -74,7 +74,7 @@ export async function POST() {
       allow_promotion_codes: true,
     });
 
-    console.log("[checkout] session created:", session.id);
+    console.error("[checkout] session created:", session.id);
     return NextResponse.json({ url: session.url });
   } catch (e) {
     console.error("[checkout] error:", e);
