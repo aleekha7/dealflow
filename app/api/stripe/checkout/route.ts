@@ -77,7 +77,8 @@ export async function POST() {
     console.error("[checkout] session created:", session.id);
     return NextResponse.json({ url: session.url });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.error("[checkout] error:", e);
-    return jsonError("Could not start checkout. Please try again.", 500);
+    return jsonError(`Checkout failed: ${msg}`, 500);
   }
 }
