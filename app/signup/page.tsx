@@ -21,7 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function SignupPage() {
   const router = useRouter();
   const [fullName, setFullName] = React.useState("");
-  const [school, setSchool] = React.useState("");
+  const [school] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -105,16 +105,6 @@ export default function SignupPage() {
                     onChange={(e) => setFullName(e.target.value)}
                     required
                     autoComplete="name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="school">School</Label>
-                  <Input
-                    id="school"
-                    placeholder="University of Michigan"
-                    value={school}
-                    onChange={(e) => setSchool(e.target.value)}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
