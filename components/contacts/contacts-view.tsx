@@ -3,11 +3,16 @@
 import * as React from "react";
 import { format } from "date-fns";
 import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Download,
   FileUp,
   MoreHorizontal,
   Pencil,
   Plus,
   Search,
+  Send,
   Trash2,
   Users,
   X,
@@ -39,6 +44,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ContactDrawer } from "@/components/contacts/contact-drawer";
+import { ComposeDialog } from "@/components/contacts/compose-dialog";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { ContactFormDialog } from "@/components/contacts/contact-form-dialog";
 import { CsvImportDialog } from "@/components/contacts/csv-import-dialog";
 import { EmptyState } from "@/components/empty-state";
@@ -65,7 +72,11 @@ export function ContactsView({
   const [editing, setEditing] = React.useState<Contact | null>(null);
   const [selected, setSelected] = React.useState<Contact | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [composeContact, setComposeContact] = React.useState<Contact | null>(null);
   const [linkedinBannerDismissed, setLinkedinBannerDismissed] = React.useState(false);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const [sortKey, setSortKey] = React.useState<"name" | "firm" | "stage" | "created_at" | "last_action_at" | null>(null);
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
 
   const hasFilters = query !== "" || tierFilter !== ALL || stageFilter !== ALL;
 
@@ -130,8 +141,63 @@ export function ContactsView({
     }
   }
 
+  function handleSort(key: typeof sortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedContacts = React.useMemo(() => {
+    if (!sortKey) return contacts;
+    return [...contacts].sort((a, b) => {
+      let av = "";
+      let bv = "";
+      if (sortKey === "name") { av = fullName(a); bv = fullName(b); }
+      else if (sortKey === "firm") { av = a.firm; bv = b.firm; }
+      else if (sortKey === "stage") { av = a.pipeline_stage; bv = b.pipeline_stage; }
+      else if (sortKey === "created_at") { av = a.created_at; bv = b.created_at; }
+      else if (sortKey === "last_action_at") { av = a.last_action_at; bv = b.last_action_at; }
+      const cmp = av.localeCompare(bv);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [contacts, sortKey, sortDir]);
+
+  function SortIcon({ col }: { col: typeof sortKey }) {
+    if (sortKey !== col) return <ArrowUpDown className="ml-1 inline h-3 w-3 text-muted-foreground/50" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="ml-1 inline h-3 w-3" />
+      : <ChevronDown className="ml-1 inline h-3 w-3" />;
+  }
+
+  function exportCsv(rows: Contact[]) {
+    const headers = ["first_name","last_name","firm","role","email","linkedin_url","tier","pipeline_stage","notes"];
+    const lines = [
+      headers.join(","),
+      ...rows.map((c) =>
+        headers.map((h) => {
+          const val = String((c as unknown as Record<string, unknown>)[h] ?? "");
+          return `"${val.replace(/"/g, '""')}"`;
+        }).join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "dealflow-contacts.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
+      <KeyboardShortcuts
+        onNewContact={() => { setEditing(null); setFormOpen(true); }}
+        onFocusSearch={() => searchRef.current?.focus()}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
@@ -143,6 +209,10 @@ export function ContactsView({
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <FileUp className="h-4 w-4" />
             Import CSV
+          </Button>
+          <Button variant="outline" onClick={() => exportCsv(contacts)} disabled={contacts.length === 0}>
+            <Download className="h-4 w-4" />
+            Export
           </Button>
           <Button
             onClick={() => {
@@ -185,6 +255,7 @@ export function ContactsView({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchRef}
             placeholder="Search by name or firm…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -260,17 +331,25 @@ export function ContactsView({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Firm</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
+                  Name<SortIcon col="name" />
+                </TableHead>
+                <TableHead className="hidden cursor-pointer select-none md:table-cell" onClick={() => handleSort("firm")}>
+                  Firm<SortIcon col="firm" />
+                </TableHead>
                 <TableHead className="hidden lg:table-cell">Role</TableHead>
                 <TableHead>Tier</TableHead>
-                <TableHead className="hidden md:table-cell">Stage</TableHead>
-                <TableHead className="hidden lg:table-cell">Added</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="hidden cursor-pointer select-none md:table-cell" onClick={() => handleSort("stage")}>
+                  Stage<SortIcon col="stage" />
+                </TableHead>
+                <TableHead className="hidden cursor-pointer select-none lg:table-cell" onClick={() => handleSort("created_at")}>
+                  Added<SortIcon col="created_at" />
+                </TableHead>
+                <TableHead className="w-20" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {contacts.map((contact) => (
+              {sortedContacts.map((contact) => (
                 <TableRow
                   key={contact.id}
                   className="cursor-pointer"
@@ -301,35 +380,45 @@ export function ContactsView({
                     {format(new Date(contact.created_at), "MMM d, yyyy")}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Contact actions"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setEditing(contact);
-                            setFormOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => handleDelete(contact)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Compose email"
+                        onClick={() => setComposeContact(contact)}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Contact actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditing(contact);
+                              setFormOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDelete(contact)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -357,6 +446,15 @@ export function ContactsView({
         onUpdated={handleUpdated}
         onDeleted={handleDeleted}
       />
+      {composeContact && (
+        <ComposeDialog
+          open={!!composeContact}
+          onOpenChange={(o) => { if (!o) setComposeContact(null); }}
+          contact={composeContact}
+          profile={profile}
+          onContactUpdated={handleUpdated}
+        />
+      )}
     </div>
   );
 }

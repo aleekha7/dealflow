@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/card";
 import { FunnelChart } from "@/components/dashboard/funnel-chart";
 import { TierDonut } from "@/components/dashboard/tier-donut";
+import { WeeklyGoal } from "@/components/dashboard/weekly-goal";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { TierBadge } from "@/components/tier-badge";
 import { STAGES, TIERS, TIER_CHART_COLORS } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
@@ -34,7 +36,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const supabase = createClient();
 
-  const [{ data: contactsData }, { data: logData }] = await Promise.all([
+  const [{ data: contactsData }, { data: logData }, { count: templateCount }] = await Promise.all([
     supabase
       .from("contacts")
       .select(
@@ -45,6 +47,7 @@ export default async function DashboardPage() {
       .from("outreach_log")
       .select("contact_id, action_type, created_at")
       .in("action_type", ["Emailed", "Replied"]),
+    supabase.from("templates").select("id", { count: "exact", head: true }),
   ]);
 
   const contacts = (contactsData ?? []) as Contact[];
@@ -82,6 +85,15 @@ export default async function DashboardPage() {
       c.pipeline_stage === "Closed (Positive)"
   ).length;
 
+  // ---- Stale contacts ----
+  const thirtyDaysAgo = subDays(new Date(), 30);
+  const stale = contacts.filter(
+    (c) =>
+      new Date(c.last_action_at) < thirtyDaysAgo &&
+      c.pipeline_stage !== "Closed (Positive)" &&
+      c.pipeline_stage !== "Closed (No Response)"
+  );
+
   // ---- Reminders ----
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -110,6 +122,20 @@ export default async function DashboardPage() {
 
   const recent = contacts.slice(0, 5);
 
+  // ---- Conversion rates ----
+  const totalEmailed = contacts.filter((c) => c.pipeline_stage !== "Not Contacted").length;
+  const totalReplied = contacts.filter((c) =>
+    ["Replied","Coffee Chat Scheduled","Coffee Chat Done","Closed (Positive)"].includes(c.pipeline_stage)
+  ).length;
+  const totalChatDone = contacts.filter((c) =>
+    ["Coffee Chat Done","Closed (Positive)"].includes(c.pipeline_stage)
+  ).length;
+  const conversionRates = [
+    { label: "Contacted → Reply", value: totalEmailed > 0 ? Math.round((totalReplied / totalEmailed) * 100) : null },
+    { label: "Reply → Coffee chat", value: totalReplied > 0 ? Math.round((totalChatDone / totalReplied) * 100) : null },
+    { label: "Overall (Contact → Chat)", value: contacts.length > 0 ? Math.round((totalChatDone / contacts.length) * 100) : null },
+  ];
+
   const stats = [
     { label: "Total contacts", value: contacts.length, icon: Users },
     { label: "Emailed this week", value: emailedThisWeek.size, icon: Mail },
@@ -130,6 +156,13 @@ export default async function DashboardPage() {
           Your networking pipeline at a glance.
         </p>
       </div>
+
+      {/* Onboarding */}
+      <OnboardingChecklist
+        hasContacts={contacts.length > 0}
+        hasTemplates={(templateCount ?? 0) > 0}
+        hasEmailed={emailedAll.size > 0}
+      />
 
       {/* Reminders due */}
       {(overdue.length > 0 || dueToday.length > 0) && (
@@ -162,6 +195,46 @@ export default async function DashboardPage() {
           )}
         </div>
       )}
+
+      {/* Stale contacts */}
+      {stale.length > 0 && (
+        <Card className="border-yellow-200 dark:border-yellow-900">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base text-yellow-700 dark:text-yellow-400">
+              <Bell className="h-4 w-4" />
+              {stale.length} contact{stale.length === 1 ? "" : "s"} going cold
+            </CardTitle>
+            <CardDescription>
+              No activity in 30+ days — worth a follow-up
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {stale.slice(0, 5).map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{fullName(c)}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {c.firm || "No firm"} · {c.pipeline_stage}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/contacts">Follow up</Link>
+                  </Button>
+                </li>
+              ))}
+              {stale.length > 5 && (
+                <li className="pt-1 text-xs text-muted-foreground">
+                  +{stale.length - 5} more
+                </li>
+              )}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Weekly goal */}
+      <WeeklyGoal emailedThisWeek={emailedThisWeek.size} />
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -209,6 +282,32 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Conversion rates */}
+      {contacts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Conversion rates</CardTitle>
+            <CardDescription>How your outreach converts at each stage</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {conversionRates.map((r) => (
+              <div key={r.label} className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{r.label}</span>
+                  <span className="font-semibold">{r.value === null ? "—" : `${r.value}%`}</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all"
+                    style={{ width: `${r.value ?? 0}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recently added */}
       <Card>

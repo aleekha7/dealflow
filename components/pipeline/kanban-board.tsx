@@ -136,6 +136,10 @@ export function KanbanBoard({
     <div className="space-y-6">
       <PipelineHeader onAdd={() => setFormOpen(true)} />
 
+      <p className="text-xs text-muted-foreground md:hidden">
+        Swipe to see all stages · tap a card to open it
+      </p>
+
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {

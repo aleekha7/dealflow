@@ -39,6 +39,13 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+const BOTTOM_NAV_ITEMS = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/contacts", label: "Contacts", icon: Users },
+  { href: "/pipeline", label: "Pipeline", icon: Kanban },
+  { href: "/templates", label: "Templates", icon: Mail },
+];
+
 function useOverdueCount() {
   const [count, setCount] = React.useState(0);
   const pathname = usePathname();
@@ -228,8 +235,56 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 pb-20 md:p-8 md:pb-8">{children}</main>
       </div>
+
+      {/* Bottom nav — mobile only */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+        {BOTTOM_NAV_ITEMS.map((item) => (
+          <BottomNavItem
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            overdueCount={item.href === "/dashboard" ? overdueCount : 0}
+          />
+        ))}
+      </nav>
     </div>
+  );
+}
+
+function BottomNavItem({
+  href,
+  label,
+  icon: Icon,
+  overdueCount,
+}: {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  overdueCount: number;
+}) {
+  const pathname = usePathname();
+  const active = pathname.startsWith(href);
+
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "relative flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors",
+        active ? "text-foreground" : "text-muted-foreground"
+      )}
+    >
+      <div className="relative">
+        <Icon className="h-5 w-5" />
+        {overdueCount > 0 ? (
+          <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white">
+            {overdueCount}
+          </span>
+        ) : null}
+      </div>
+      {label}
+    </Link>
   );
 }

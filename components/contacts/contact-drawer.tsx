@@ -6,6 +6,7 @@ import {
   Bell,
   Briefcase,
   CalendarPlus,
+  ClipboardList,
   Coffee,
   Linkedin,
   Loader2,
@@ -39,6 +40,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ComposeDialog } from "@/components/contacts/compose-dialog";
+import { PrepSheetDialog } from "@/components/contacts/prep-sheet-dialog";
 import { TierBadge } from "@/components/tier-badge";
 import { api } from "@/lib/client-api";
 import { ACTION_TYPES, STAGES } from "@/lib/constants";
@@ -80,12 +82,15 @@ export function ContactDrawer({
   const [logLoading, setLogLoading] = React.useState(false);
   const [notes, setNotes] = React.useState("");
   const [savingNotes, setSavingNotes] = React.useState(false);
+  const [notesSaved, setNotesSaved] = React.useState(false);
+  const notesTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reminderInput, setReminderInput] = React.useState("");
   const [savingReminder, setSavingReminder] = React.useState(false);
   const [logAction, setLogAction] = React.useState<ActionType>("Emailed");
   const [logNote, setLogNote] = React.useState("");
   const [addingLog, setAddingLog] = React.useState(false);
   const [composeOpen, setComposeOpen] = React.useState(false);
+  const [prepOpen, setPrepOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
   const refreshLog = React.useCallback((contactId: string) => {
@@ -129,20 +134,26 @@ export function ContactDrawer({
     }
   }
 
-  async function handleSaveNotes() {
+  async function handleSaveNotes(value: string) {
     if (!contact) return;
     setSavingNotes(true);
     try {
-      const { contact: updated } = await api.updateContact(contact.id, {
-        notes,
-      });
-      toast.success("Notes saved");
+      const { contact: updated } = await api.updateContact(contact.id, { notes: value });
       onUpdated(updated);
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save notes");
     } finally {
       setSavingNotes(false);
     }
+  }
+
+  function handleNotesChange(value: string) {
+    setNotes(value);
+    setNotesSaved(false);
+    if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+    notesTimerRef.current = setTimeout(() => handleSaveNotes(value), 1000);
   }
 
   async function handleSaveReminder() {
@@ -229,6 +240,10 @@ export function ContactDrawer({
               <Button size="sm" onClick={() => setComposeOpen(true)}>
                 <Send className="h-4 w-4" />
                 Compose outreach
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setPrepOpen(true)}>
+                <ClipboardList className="h-4 w-4" />
+                Prep for chat
               </Button>
               <Button
                 size="sm"
@@ -347,25 +362,25 @@ export function ContactDrawer({
 
             {/* Notes */}
             <div className="space-y-2">
-              <Label htmlFor="drawer-notes">Notes</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="drawer-notes">Notes</Label>
+                <span className="text-xs text-muted-foreground">
+                  {savingNotes ? (
+                    <span className="flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+                    </span>
+                  ) : notesSaved ? (
+                    "Saved"
+                  ) : null}
+                </span>
+              </div>
               <Textarea
                 id="drawer-notes"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => handleNotesChange(e.target.value)}
                 rows={3}
                 placeholder="Background, talking points, things they mentioned…"
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSaveNotes}
-                disabled={savingNotes || notes === contact.notes}
-              >
-                {savingNotes ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : null}
-                Save notes
-              </Button>
             </div>
 
             <Separator />
@@ -461,6 +476,12 @@ export function ContactDrawer({
           onUpdated(updated);
           refreshLog(updated.id);
         }}
+      />
+      <PrepSheetDialog
+        open={prepOpen}
+        onOpenChange={setPrepOpen}
+        contact={contact}
+        profile={profile}
       />
     </>
   );
