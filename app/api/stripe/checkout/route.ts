@@ -26,24 +26,27 @@ export async function POST() {
     return jsonError("You already have an active subscription");
   }
 
-  const stripe = getStripe();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+  const priceId = process.env.STRIPE_PRICE_ID!;
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+
+  console.log("[checkout] appUrl:", appUrl, "priceId:", priceId, "hasKey:", !!stripeKey);
+  console.log("[checkout] profile email:", profile.email, "status:", profile.subscription_status, "customerId:", profile.stripe_customer_id);
+
+  const stripe = getStripe();
 
   try {
-    // Reuse the Stripe customer if one exists; otherwise create it now so
-    // the webhook can match events back to this user.
     let customerId = profile.stripe_customer_id;
     if (!customerId) {
+      console.log("[checkout] creating Stripe customer...");
       const customer = await stripe.customers.create({
-        email: profile.email,
+        email: profile.email || undefined,
         name: profile.full_name || undefined,
         metadata: { supabase_user_id: user.id },
       });
       customerId = customer.id;
+      console.log("[checkout] customer created:", customerId);
 
-      // Stored via the user's own session would be blocked by column grants,
-      // so this uses the service-role path: an RPC-free direct update is
-      // fine here because the route runs server-side with the admin client.
       const { createAdminClient } = await import("@/lib/supabase/admin");
       const admin = createAdminClient();
       const { error: updateError } = await admin
@@ -51,14 +54,17 @@ export async function POST() {
         .update({ stripe_customer_id: customerId })
         .eq("id", user.id);
       if (updateError) {
+        console.error("[checkout] failed to save customer id:", updateError);
         return jsonError("Failed to save billing profile", 500);
       }
+      console.log("[checkout] customer id saved to profile");
     }
 
+    console.log("[checkout] creating checkout session...");
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
-      line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
         metadata: { supabase_user_id: user.id, plan: PLAN_NAME },
       },
@@ -68,9 +74,10 @@ export async function POST() {
       allow_promotion_codes: true,
     });
 
+    console.log("[checkout] session created:", session.id);
     return NextResponse.json({ url: session.url });
   } catch (e) {
-    console.error("Stripe checkout error:", e);
+    console.error("[checkout] error:", e);
     return jsonError("Could not start checkout. Please try again.", 500);
   }
 }
